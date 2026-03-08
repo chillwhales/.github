@@ -1,0 +1,62 @@
+name: CI — Quality Checks
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node.js version
+        type: number
+        required: false
+        default: 22
+      verify-command:
+        description: Package verification command (e.g., "pnpm validate:publish")
+        type: string
+        required: false
+        default: ""
+      changeset-check:
+        description: Whether to run changeset status check on PRs
+        type: boolean
+        required: false
+        default: true
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Package Verify (downloads build artifact from caller workflow)
+  # -------------------------------------------------------------------------
+  pkg-verify:
+    name: Package Verify
+    runs-on: ubuntu-latest
+    if: inputs.verify-command != ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: packages
+      - run: ${{ inputs.verify-command }}
+
+  # -------------------------------------------------------------------------
+  # Changeset Check (PRs only)
+  # -------------------------------------------------------------------------
+  changeset-check:
+    name: Changeset Check
+    runs-on: ubuntu-latest
+    if: inputs.changeset-check && github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm changeset status --since=origin/main

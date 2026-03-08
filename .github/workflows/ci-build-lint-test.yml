@@ -1,0 +1,209 @@
+name: CI — Build, Lint & Test
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node.js version
+        type: number
+        required: false
+        default: 22
+      build-command:
+        description: Build command (e.g., "pnpm build")
+        type: string
+        required: true
+      lint-command:
+        description: Lint command (e.g., "pnpm lint")
+        type: string
+        required: false
+        default: ""
+      format-command:
+        description: Format check command (e.g., "pnpm format:check")
+        type: string
+        required: false
+        default: ""
+      test-command:
+        description: Test command (e.g., "pnpm test:coverage")
+        type: string
+        required: false
+        default: ""
+      typecheck-command:
+        description: Typecheck command (e.g., "pnpm typecheck")
+        type: string
+        required: false
+        default: ""
+      pre-lint-command:
+        description: Command to run before lint (e.g., build dependency packages)
+        type: string
+        required: false
+        default: ""
+      test-node-versions:
+        description: JSON array of Node versions for test matrix
+        type: string
+        required: false
+        default: "[20, 22]"
+      artifact-paths:
+        description: Newline-separated paths to upload after build
+        type: string
+        required: true
+      coverage-artifact-name:
+        description: Name for coverage artifact
+        type: string
+        required: false
+        default: "coverage-reports"
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Install — warm pnpm cache
+  # -------------------------------------------------------------------------
+  install:
+    name: Install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+  # -------------------------------------------------------------------------
+  # Format check (parallel with lint + build)
+  # -------------------------------------------------------------------------
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    needs: [install]
+    if: inputs.format-command != ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: ${{ inputs.format-command }}
+
+  # -------------------------------------------------------------------------
+  # Lint (parallel with format + build)
+  # -------------------------------------------------------------------------
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    needs: [install]
+    if: inputs.lint-command != ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Pre-lint build
+        if: inputs.pre-lint-command != ''
+        run: ${{ inputs.pre-lint-command }}
+      - run: ${{ inputs.lint-command }}
+
+  # -------------------------------------------------------------------------
+  # Build (parallel with format + lint)
+  # -------------------------------------------------------------------------
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [install]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: ${{ inputs.build-command }}
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: ${{ inputs.artifact-paths }}
+          retention-days: 1
+
+  # -------------------------------------------------------------------------
+  # Typecheck (needs build artifacts)
+  # -------------------------------------------------------------------------
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: inputs.typecheck-command != ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: packages
+      - run: ${{ inputs.typecheck-command }}
+
+  # -------------------------------------------------------------------------
+  # Test (needs build, Node version matrix)
+  # -------------------------------------------------------------------------
+  test:
+    name: Test (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: inputs.test-command != ''
+    strategy:
+      matrix:
+        node-version: ${{ fromJson(inputs.test-node-versions) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: packages
+      - name: Run tests
+        run: ${{ inputs.test-command }}
+      - name: Upload coverage reports
+        if: matrix.node-version == inputs.node-version
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.coverage-artifact-name }}
+          path: coverage/
+          retention-days: 1
+
+  # -------------------------------------------------------------------------
+  # Coverage Report (PRs only)
+  # -------------------------------------------------------------------------
+  coverage:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: inputs.test-command != '' && github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.coverage-artifact-name }}
+          path: coverage
+      - name: Coverage report
+        uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          json-summary-path: coverage/coverage-summary.json
+          json-final-path: coverage/coverage-final.json
