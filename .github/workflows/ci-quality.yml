@@ -18,6 +18,11 @@ on:
         type: boolean
         required: false
         default: true
+      base-branch:
+        description: Base branch for changeset comparison (e.g., "main")
+        type: string
+        required: false
+        default: main
 
 jobs:
   # -------------------------------------------------------------------------
@@ -59,4 +64,4 @@ jobs:
           node-version: ${{ inputs.node-version }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm changeset status --since=origin/main
+      - run: pnpm changeset status --since=origin/${{ inputs.base-branch }}
