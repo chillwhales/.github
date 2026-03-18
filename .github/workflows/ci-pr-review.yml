@@ -27,8 +27,6 @@ jobs:
           config.model: "anthropic/claude-opus-4-6"
           config.model_turbo: "anthropic/claude-sonnet-4-6"
           config.fallback_models: '["anthropic/claude-sonnet-4-6"]'
-          config.enable_claude_extended_thinking: "true"
-          config.extended_thinking_budget_tokens: "10240"
           config.max_model_tokens: "16384"
           config.auto_review: "true"
           config.auto_describe: "true"
@@ -50,6 +48,4 @@ jobs:
           config.model: "anthropic/claude-opus-4-6"
           config.model_turbo: "anthropic/claude-sonnet-4-6"
           config.fallback_models: '["anthropic/claude-sonnet-4-6"]'
-          config.enable_claude_extended_thinking: "true"
-          config.extended_thinking_budget_tokens: "10240"
           config.max_model_tokens: "16384"
