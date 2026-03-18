@@ -1,33 +1,42 @@
 # PR Review Ruleset Setup Guide
 
-This guide explains how to configure the org-wide PR review workflow for the chillwhales GitHub organisation. The `.github` repo contains a centralised workflow (`ci-pr-review.yml`) that runs [qodo-ai/pr-agent](https://github.com/qodo-ai/pr-agent) with Claude Opus 4.6 on every pull request. An org ruleset makes it a required check across all (or selected) repos without any per-repo configuration.
+This guide explains how to configure the org-wide PR review workflow for the chillwhales GitHub organisation. The `.github` repo contains a centralised workflow (`ci-pr-review.yml`) that runs [Claude Code Action](https://github.com/anthropics/claude-code-action) with Claude Opus 4.6 on every pull request. An org ruleset makes it a required check across all (or selected) repos without any per-repo configuration.
 
 ---
 
 ## Prerequisites
 
 - Admin access to the chillwhales GitHub org
-- An Anthropic API key with access to Claude Opus 4.6 (and Claude Sonnet 4.6 for fallback)
+- A Claude Max subscription (the workflow uses your Claude Code OAuth token — no separate Anthropic API key needed)
 
 ---
 
-## Step 1: Create the `ANTHROPIC_KEY` org secret
+## Step 1: Get your Claude Code OAuth token
 
-The workflow authenticates to the Anthropic API using an org-level secret so it's available in every repo without per-repo setup.
+The workflow authenticates using your Claude Code OAuth token from your Max subscription.
+
+1. On a machine with Claude Code installed, find your credentials:
+   - **Linux:** `~/.claude/.credentials.json`
+   - **macOS:** Search "claude" in Keychain Access → Show Password
+2. Copy the `oauth_token` value
+
+> **Note:** This uses your existing Claude Max subscription budget — no separate API billing. Each PR review costs tokens from your subscription allowance.
+
+---
+
+## Step 2: Create the `CLAUDE_CODE_OAUTH_TOKEN` org secret
 
 1. Go to **github.com/organizations/chillwhales** → **Settings** → **Secrets and variables** → **Actions**
 2. Click **New organization secret**
 3. Fill in:
-   - **Name:** `ANTHROPIC_KEY`
-   - **Value:** your Anthropic API key
-   - **Repository access:** _All repositories_ (or select specific repos if you want to restrict which repos get PR review)
+   - **Name:** `CLAUDE_CODE_OAUTH_TOKEN`
+   - **Value:** your OAuth token from Step 1
+   - **Repository access:** _All repositories_ (or select specific repos)
 4. Click **Add secret**
-
-> **Tip:** The API key needs access to `claude-opus-4-6` and `claude-sonnet-4-6`. Verify this in your [Anthropic Console](https://console.anthropic.com/) if you see auth errors.
 
 ---
 
-## Step 2: Configure the org ruleset
+## Step 3: Configure the org ruleset
 
 The ruleset makes `ci-pr-review.yml` a required workflow for pull requests across the org.
 
@@ -46,18 +55,17 @@ The ruleset makes `ci-pr-review.yml` a required workflow for pull requests acros
    - **Ref (branch):** `main`
 7. Click **Create** to save the ruleset
 
-> **Note:** The ruleset only enforces the workflow as a required check. The workflow itself also runs as a non-blocking check (for review comments) even without the ruleset — the ruleset just makes it a merge gate.
-
 ---
 
-## Step 3: Test
+## Step 4: Test
 
 1. Open a PR in any targeted repo
-2. Verify three pr-agent comments appear within a few minutes:
-   - A **description** comment (PR summary)
-   - A **review** comment (code review with findings)
-   - An **improvement** comment (suggested code improvements)
-3. In a PR comment, type `/review` and submit — verify pr-agent re-runs its review as a slash command
+2. Verify a Claude review comment appears within a few minutes with:
+   - **Must Fix** — critical issues
+   - **Should Consider** — important improvements
+   - **Minor** — nits and style suggestions
+   - **Summary** — brief overview
+3. In a PR comment, type `@claude review this again` — verify Claude responds to the mention
 4. In GitHub → **Settings** → **Rulesets**, the ruleset status indicator should show green when the workflow passes
 
 ---
@@ -66,13 +74,13 @@ The ruleset makes `ci-pr-review.yml` a required workflow for pull requests acros
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| "Authentication error" or 401 in workflow logs | `ANTHROPIC_KEY` secret missing or wrong | Re-check org secret name (must be `ANTHROPIC_KEY`, no typo) and value |
+| Workflow fails with auth error | `CLAUDE_CODE_OAUTH_TOKEN` secret missing or expired | Re-check org secret; tokens may expire — regenerate from `~/.claude/.credentials.json` |
 | Secret not available in a repo | Repository access scope on the secret | Edit the org secret and change access to "All repositories" or add the specific repo |
 | Workflow not triggering on PRs | Ruleset not active or not targeting the repo | Check ruleset enforcement is "Active" and the repo is in scope |
-| pr-agent runs but posts no comments | `GITHUB_TOKEN` permissions issue | The workflow sets `pull-requests: write` and `issues: write` — ensure org settings allow workflows to create PRs/issues |
+| Claude runs but posts no comments | `GITHUB_TOKEN` permissions issue | The workflow sets `pull-requests: write` and `issues: write` — ensure org settings allow workflows to create PRs/issues |
 | Review triggers on draft PRs | Unexpected — workflow has `draft == false` guard | Verify the `if:` condition in `ci-pr-review.yml` job `pr_agent_review` is present |
-| Infinite comment loop (bot replies trigger review) | Bot exclusion not working | The workflow checks `github.event.sender.type != 'Bot'`; verify the condition is present in both jobs |
-| Slash commands not working | `issue_comment` job not running | Check the `pr_agent_commands` job condition: it requires `github.event.issue.pull_request` (only comments on PRs, not issues) |
+| `@claude` commands not working | Comment doesn't contain `@claude` or sender is a bot | Check the `pr_agent_commands` job condition |
+| Token budget exceeded | Too many reviews consuming Max subscription tokens | Reduce review frequency or switch model to `claude-sonnet-4-6` for lower token usage |
 
 ---
 
@@ -82,13 +90,13 @@ The workflow is at `.github/workflows/ci-pr-review.yml` in this repo. Key config
 
 | Setting | Value |
 |---|---|
-| Primary model | `anthropic/claude-opus-4-6` |
-| Fallback model | `anthropic/claude-sonnet-4-6` |
-| Extended thinking | Enabled (10240 token budget) |
-| Auto-review | Enabled |
-| Auto-describe | Enabled |
-| Auto-improve | Enabled |
+| Action | `anthropics/claude-code-action@v1` |
+| Model | `claude-opus-4-6` |
+| Auth | Claude Code OAuth token (Max subscription) |
+| Auto-review | On PR open/reopen/sync/ready-for-review |
+| Slash commands | `@claude` in PR comments |
 | Draft PR exclusion | Yes (`draft == false`) |
 | Bot sender exclusion | Yes (`sender.type != 'Bot'`) |
+| Concurrency | One review per PR at a time |
 
-To change model or feature flags, edit the `env:` block on the `qodo-ai/pr-agent@main` step in `ci-pr-review.yml`.
+To change model or review behaviour, edit the workflow file directly. The `prompt` field controls what Claude reviews and how it formats output.
