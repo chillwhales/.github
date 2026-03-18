@@ -28,6 +28,7 @@ jobs:
           config.model_turbo: "anthropic/claude-sonnet-4-6"
           config.fallback_models: '["anthropic/claude-sonnet-4-6"]'
           config.max_model_tokens: "16384"
+          config.temperature: "1"
           config.auto_review: "true"
           config.auto_describe: "true"
           config.auto_improve: "true"
@@ -49,3 +50,4 @@ jobs:
           config.model_turbo: "anthropic/claude-sonnet-4-6"
           config.fallback_models: '["anthropic/claude-sonnet-4-6"]'
           config.max_model_tokens: "16384"
+          config.temperature: "1"
