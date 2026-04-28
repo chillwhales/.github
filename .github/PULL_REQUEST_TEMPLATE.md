@@ -8,9 +8,9 @@
 
 <!-- Keep the sub-header that suits the PR and remove the rest -->
 
-<!-- Changes that potentially cause other components to fail (changes in interfaceIds, function signatures, behavior, etc ..) --->
+<!-- Changes that potentially cause other components to fail (changes in interfaceIds, function signatures, behavior, etc ..) -->
 
-<!---
+<!--
 ## ⚠️ BREAKING CHANGES
 ## 🚀 Feature
 ## 🐛 Bug
@@ -21,11 +21,11 @@
 ## 📄 Documentation
 ## 📦 Build
 ## 🤖 CI
----->
+-->
 
-<!---
+<!--
 Fixes #<Fill in with issue number>
----->
+-->
 
 <!-- Describe the changes introduced in this pull request here. -->
 
