@@ -1,0 +1,27 @@
+name: CI — Changeset Check
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node.js version
+        type: number
+        required: false
+        default: 22
+      base-branch:
+        description: Base branch for changeset comparison
+        type: string
+        required: false
+        default: main
+
+jobs:
+  changeset-check:
+    name: Changeset Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: chillwhales/.github/.github/actions/setup-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+          fetch-depth: 0
+      - run: pnpm changeset status --since=origin/${{ inputs.base-branch }}

@@ -88,6 +88,61 @@ Preview releases via pkg-pr-new on pull requests.
 | `node-version`     | No       | `22`    | Node.js version                             |
 | `preview-packages` | No       | `''`    | Space-separated package dirs for pkg-pr-new |
 
+### `ci-changeset-check`
+
+Standalone PR check that fails if no changeset is present for the diff against the base branch. Use this in repos that don't run the full `ci-quality` workflow (e.g. apps that don't publish packages but still want changeset-driven release notes).
+
+**Location:** `.github/workflows/ci-changeset-check.yml`
+
+| Input          | Required | Default | Description                          |
+| -------------- | -------- | ------- | ------------------------------------ |
+| `node-version` | No       | `22`    | Node.js version                      |
+| `base-branch`  | No       | `main`  | Base branch for changeset comparison |
+
+### `release-changesets`
+
+Wraps `changesets/action@v1`. On push to the release branch, opens or updates a Version PR; when that PR merges, runs `publish-command` and exposes outputs so downstream jobs (e.g. Docker publish) can fan out per published package.
+
+**Location:** `.github/workflows/release-changesets.yml`
+
+| Input             | Required | Default                                 | Description                                                      |
+| ----------------- | -------- | --------------------------------------- | ---------------------------------------------------------------- |
+| `node-version`    | No       | `22`                                    | Node.js version                                                  |
+| `version-command` | No       | `pnpm changeset version`                | Command Changesets runs to bump versions and write changelogs    |
+| `publish-command` | No       | `''`                                    | Command Changesets runs to publish (e.g. `pnpm release`)         |
+| `setup-command`   | No       | `''`                                    | Optional command run after install, before version/publish      |
+| `pr-title`        | No       | `chore(release): version packages`      | Title for the Version PR                                         |
+| `commit-message`  | No       | `chore(release): version packages`      | Commit message Changesets uses when versioning                   |
+
+| Secret      | Required | Description                                                              |
+| ----------- | -------- | ------------------------------------------------------------------------ |
+| `NPM_TOKEN` | No       | npm auth token. Required when `publish-command` publishes to npm         |
+| `GH_PAT`    | No       | PAT used by `changesets/action` to open the Version PR. Falls back to `GITHUB_TOKEN` |
+
+| Output               | Description                                                  |
+| -------------------- | ------------------------------------------------------------ |
+| `published`          | `'true'` when changesets/action published one or more packages |
+| `published-packages` | JSON array of `{ name, version }` for packages published     |
+
+### `publish-docker-ghcr`
+
+Builds a single Docker image and pushes it to GHCR with `:v<version>`, `:sha-<short>`, and (optionally) `:latest` tags. No-ops when `version` is empty so callers can wire it unconditionally and feed it directly from `release-changesets` outputs.
+
+**Location:** `.github/workflows/publish-docker-ghcr.yml`
+
+| Input         | Required | Default      | Description                                                    |
+| ------------- | -------- | ------------ | -------------------------------------------------------------- |
+| `image-name`  | Yes      | —            | Image name under `ghcr.io/<owner>/`. Lowercased automatically. |
+| `version`     | No       | `''`         | Semver version. When empty, the job is skipped.                |
+| `context`     | No       | `.`          | Docker build context                                           |
+| `dockerfile`  | No       | `Dockerfile` | Path to the Dockerfile                                         |
+| `platforms`   | No       | `linux/amd64`| Comma-separated build platforms                                |
+| `build-args`  | No       | `''`         | Newline-separated `KEY=VALUE` build args                       |
+| `push-latest` | No       | `true`       | Also tag and push `:latest`                                    |
+| `registry`    | No       | `ghcr.io`    | Container registry host                                        |
+
+Permissions required on the caller: `contents: read`, `packages: write`.
+
 ## Example: Caller Workflow
 
 ```yaml
@@ -121,6 +176,87 @@ jobs:
     with:
       verify-command: pnpm validate:publish
       changeset-check: true
+```
+
+## Example: Release with multi-image Docker publish (chillpass-style)
+
+For a monorepo that publishes a main app plus several services, run `release-changesets` once on push to `main`, then fan out to `publish-docker-ghcr` per image. Empty `version` inputs cause the publish job to no-op cleanly when there's nothing to release.
+
+```yaml
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    uses: chillwhales/.github/.github/workflows/release-changesets.yml@main
+    with:
+      setup-command: pnpm build
+      publish-command: pnpm release
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  resolve-versions:
+    needs: [release]
+    if: needs.release.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.pick.outputs.app }}
+      api: ${{ steps.pick.outputs.api }}
+      worker: ${{ steps.pick.outputs.worker }}
+    steps:
+      - id: pick
+        env:
+          PUBLISHED: ${{ needs.release.outputs.published-packages }}
+        run: |
+          jq_version() { echo "$PUBLISHED" | jq -r --arg n "$1" '.[] | select(.name == $n) | .version'; }
+          {
+            echo "app=$(jq_version @chillpass/app)"
+            echo "api=$(jq_version @chillpass/api)"
+            echo "worker=$(jq_version @chillpass/worker)"
+          } >> "$GITHUB_OUTPUT"
+
+  docker-app:
+    needs: [resolve-versions]
+    permissions:
+      contents: read
+      packages: write
+    uses: chillwhales/.github/.github/workflows/publish-docker-ghcr.yml@main
+    with:
+      image-name: chillpass-app
+      version: ${{ needs.resolve-versions.outputs.app }}
+      context: apps/app
+      dockerfile: apps/app/Dockerfile
+
+  docker-api:
+    needs: [resolve-versions]
+    permissions:
+      contents: read
+      packages: write
+    uses: chillwhales/.github/.github/workflows/publish-docker-ghcr.yml@main
+    with:
+      image-name: chillpass-api
+      version: ${{ needs.resolve-versions.outputs.api }}
+      context: services/api
+      dockerfile: services/api/Dockerfile
+
+  docker-worker:
+    needs: [resolve-versions]
+    permissions:
+      contents: read
+      packages: write
+    uses: chillwhales/.github/.github/workflows/publish-docker-ghcr.yml@main
+    with:
+      image-name: chillpass-worker
+      version: ${{ needs.resolve-versions.outputs.worker }}
+      context: services/worker
+      dockerfile: services/worker/Dockerfile
 ```
 
 ## Adding New Workflows
