@@ -50,8 +50,8 @@ jobs:
         with:
           version: pnpm changeset version
           publish: pnpm changeset tag
-          commit: "chore: version packages"
-          title: "chore: version packages"
+          commit: "chore(release): version packages"
+          title: "chore(release): version packages"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -68,7 +68,7 @@ jobs:
                 $p[]
                 | . as $pkg
                 | ($m[$pkg.name] // empty)
-                | { name: $pkg.name, image: .image, context: .context, dockerfile: .dockerfile, version: $pkg.version }
+                | { name: $pkg.name, image: .image, context: (.context // "."), dockerfile: (.dockerfile // "Dockerfile"), version: $pkg.version }
               ]
             }
           ')
@@ -96,4 +96,3 @@ jobs:
       context: ${{ matrix.context }}
       dockerfile: ${{ matrix.dockerfile }}
       push-latest: true
-    secrets: inherit
