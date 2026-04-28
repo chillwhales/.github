@@ -1,4 +1,4 @@
-<!-- Thank you for your interest in contributing to LUKSO! -->
+<!-- Thank you for your interest in contributing! -->
 
 <!-- Consider opening an issue for discussion prior to submitting a PR. -->
 <!-- Consider checking CONTRIBUTING.md before contributing. -->
@@ -8,7 +8,7 @@
 
 <!-- Keep the sub-header that suits the PR and remove the rest -->
 
-<!-- Changes that potentially causes other components to fail (changes in interfaceIds, function signatures, behavior, etc ..) --->
+<!-- Changes that potentially cause other components to fail (changes in interfaceIds, function signatures, behavior, etc ..) --->
 
 <!---
 ## ⚠️ BREAKING CHANGES

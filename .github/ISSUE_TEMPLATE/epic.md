@@ -57,7 +57,7 @@ assignees: ''
 
 ## 🔗 Related Links
 
-- [Architecture](../apps/web/docs/ARCHITECTURE.md)
+- Architecture doc:
 - Design doc:
 - Slack thread:
 
