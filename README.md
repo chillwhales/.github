@@ -139,7 +139,6 @@ Builds a single Docker image and pushes it to GHCR with `:v<version>`, `:sha-<sh
 | `platforms`   | No       | `linux/amd64`| Comma-separated build platforms                                |
 | `build-args`  | No       | `''`         | Newline-separated `KEY=VALUE` build args                       |
 | `push-latest` | No       | `true`       | Also tag and push `:latest`                                    |
-| `registry`    | No       | `ghcr.io`    | Container registry host                                        |
 
 Permissions required on the caller: `contents: read`, `packages: write`.
 
