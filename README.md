@@ -124,6 +124,46 @@ Wraps `changesets/action@v1`. On push to the release branch, opens or updates a 
 | `published`          | `'true'` when changesets/action published one or more packages |
 | `published-packages` | JSON array of `{ name, version }` for packages published     |
 
+### `release-docker-stack`
+
+Org-reusable orchestrator that runs `changesets/action@v1`, intersects the published packages with a caller-declared image map, and fans out a matrix of `publish-docker-ghcr.yml` calls — one per published image, with `fail-fast: false` so one failure does not stop the rest. Designed for monorepos that ship multiple Docker images from a single Version Packages PR.
+
+**Location:** `.github/workflows/release-docker-stack.yml`
+
+| Input          | Required | Default | Description                                                                                                    |
+| -------------- | -------- | ------- | -------------------------------------------------------------------------------------------------------------- |
+| `images`       | Yes      | —       | JSON map of `{ <published-package-name>: { image, context, dockerfile } }`. Only intersecting entries publish. |
+| `node-version` | No       | `22`    | Node.js version                                                                                                |
+
+| Output           | Description                                                                   |
+| ---------------- | ----------------------------------------------------------------------------- |
+| `published`      | `'true'` when changesets/action published one or more packages                |
+| `publish-matrix` | JSON `{ "include": [...] }` matrix of resolved images that were published     |
+| `version`        | First published package version (convenience for single-semver-per-run repos) |
+
+**`images` JSON contract.** Keys must match `name` values from changesets' `publishedPackages` output exactly (the `package.json` `name` of each deployable). Values describe how to build that image:
+
+- `image` — image name under `ghcr.io/<owner>/`. Lowercased by the leaf workflow.
+- `context` — Docker build context path (relative to repo root).
+- `dockerfile` — path to the Dockerfile (relative to repo root).
+
+Packages bumped by changesets but absent from the map are silently ignored — useful when a monorepo publishes both npm libraries and Docker apps from the same release. Map entries with no matching published package are also ignored — empty intersection short-circuits the publish job cleanly.
+
+**chillpass-shaped example:**
+
+```yaml
+images: |
+  {
+    "chillpass-app":     { "image": "chillpass-app",     "context": ".", "dockerfile": "Dockerfile" },
+    "chillpass-auth":    { "image": "chillpass-auth",    "context": ".", "dockerfile": "services/auth/Dockerfile" },
+    "chillpass-storage": { "image": "chillpass-storage", "context": ".", "dockerfile": "services/storage/Dockerfile" }
+  }
+```
+
+**Recovery / replay.** The orchestrator stays `workflow_call`-only on purpose. Callers that want a manual replay path (republish a single image after a partial failure, or re-tag `:latest`) expose `workflow_dispatch` themselves and route the recovery job directly at `publish-docker-ghcr.yml@main` with the explicit `image-name` + `version` — bypassing changesets entirely. Keeping recovery in the caller preserves the orchestrator's contract as "changesets-driven release fan-out" and lets each repo tune its own dispatch UX.
+
+Permissions on the calling workflow: `contents: write`, `pull-requests: write`, `packages: write`. Authentication is `secrets.GITHUB_TOKEN` only — no PAT needed for GHCR pushes.
+
 ### `publish-docker-ghcr`
 
 Builds a single Docker image and pushes it to GHCR with `:v<version>`, `:sha-<short>`, and (optionally) `:latest` tags. No-ops when `version` is empty so callers can wire it unconditionally and feed it directly from `release-changesets` outputs.
