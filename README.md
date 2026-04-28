@@ -143,6 +143,49 @@ Builds a single Docker image and pushes it to GHCR with `:v<version>`, `:sha-<sh
 
 Permissions required on the caller: `contents: read`, `packages: write`.
 
+## Recommended Usage
+
+Two ways consumer repos pick up these workflows:
+
+1. **Org Ruleset (zero per-repo files)** — GitHub auto-runs the workflow on every targeted repo. Use for PR gates that need no repo-specific inputs. Configured once in the org's Rulesets UI under "Required Workflows", pointing at `chillwhales/.github/.github/workflows/<name>@main`. See `RULESET.md`.
+2. **Caller workflow (`uses:`)** — repo commits a thin `.github/workflows/*.yml` that calls the reusable workflow with repo-specific inputs and secrets. Use whenever the workflow needs context (publish command, image name, dockerfile path).
+
+### Pick by workflow
+
+| Workflow                  | Mechanism            | Why                                                                        |
+| ------------------------- | -------------------- | -------------------------------------------------------------------------- |
+| `ci-changeset-check`      | Ruleset              | Same gate everywhere; no inputs needed beyond the default base branch       |
+| `ci-build-lint-test`      | Caller               | Needs repo-specific build/lint/test/typecheck commands and artifact paths   |
+| `ci-quality`              | Caller               | Needs repo-specific verify command                                          |
+| `ci-publish-validation`   | Caller               | Needs repo-specific package list                                            |
+| `release-changesets`      | Caller               | Triggered on `push` to main with repo-specific publish command + secrets    |
+| `publish-docker-ghcr`     | Caller (fan-out)     | Needs per-image `image-name`, `context`, `dockerfile`                       |
+
+### Recipes by repo type
+
+**Library / package (publishes to npm, no Docker)**
+- Ruleset: `ci-changeset-check`
+- Caller `.github/workflows/ci.yml`: calls `ci-build-lint-test` + `ci-quality` + `ci-publish-validation`
+- Caller `.github/workflows/release.yml`: calls `release-changesets` with `publish-command: pnpm release` and `NPM_TOKEN`
+
+**App with one Docker image**
+- Ruleset: `ci-changeset-check`
+- Caller `.github/workflows/ci.yml`: calls `ci-build-lint-test`
+- Caller `.github/workflows/release.yml`: calls `release-changesets`, then `publish-docker-ghcr` with the published version
+
+**Monorepo with multiple Docker images (chillpass-style)**
+- Ruleset: `ci-changeset-check`
+- Caller `.github/workflows/ci.yml`: calls `ci-build-lint-test`
+- Caller `.github/workflows/release.yml`: calls `release-changesets`, a `resolve-versions` job that maps published package names to versions, then a `publish-docker-ghcr` job per image — see the worked example below
+
+### Conventions
+
+- Always pin to `@main` for now; switch to `@v1` once tags exist.
+- Always set `concurrency` on caller workflows to prevent overlapping runs on the same ref.
+- Set `permissions: { contents: read, packages: write }` on any job that calls `publish-docker-ghcr`.
+- Pass `NPM_TOKEN` only to `release-changesets`; never expose it to Docker jobs.
+- Prefer empty `version` over conditional `if:` for Docker fan-out — the workflow no-ops cleanly when nothing was published.
+
 ## Example: Caller Workflow
 
 ```yaml
