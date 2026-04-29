@@ -21,6 +21,7 @@ jobs:
     outputs:
       source-tag: ${{ steps.tag.outputs.source-tag }}
     steps:
+      - uses: actions/checkout@v4
       - name: Compute throwaway source tag
         id: tag
         run: echo "source-tag=src-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
