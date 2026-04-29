@@ -49,9 +49,22 @@ on:
         default: false
 
 jobs:
+  resolve-runner:
+    name: Resolve runner
+    runs-on: ${{ vars.RUNNER_RESOLVER || 'ubuntu-latest' }}
+    outputs:
+      heavy: ${{ steps.r.outputs.heavy }}
+      light: ${{ steps.r.outputs.light }}
+    steps:
+      - id: r
+        run: |
+          echo "heavy=${{ vars.RUNNER_HEAVY || 'ubuntu-latest' }}" >> "$GITHUB_OUTPUT"
+          echo "light=${{ vars.RUNNER_LIGHT || 'ubuntu-latest' }}" >> "$GITHUB_OUTPUT"
+
   prune:
     name: Prune stale ${{ inputs.pr-tag-pattern }} tags
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.resolve-runner.outputs.light }}
+    needs: [resolve-runner]
     permissions:
       contents: read
       packages: write

@@ -18,18 +18,37 @@ on:
         required: false
         default: true
       runs-on:
-        description: Runner label for matrix jobs
+        description: |
+          Runner label for the lint matrix jobs. When empty, falls back to the
+          tiered resolver (`vars.RUNNER_HEAVY` → default `ubuntu-latest`). Pass
+          a value to force a specific runner.
         type: string
         required: false
-        default: ubuntu-latest
+        default: ""
 
 jobs:
+  # -------------------------------------------------------------------------
+  # Resolve runner — emit heavy/light labels from org/repo vars
+  # -------------------------------------------------------------------------
+  resolve-runner:
+    name: Resolve runner
+    runs-on: ${{ vars.RUNNER_RESOLVER || 'ubuntu-latest' }}
+    outputs:
+      heavy: ${{ steps.r.outputs.heavy }}
+      light: ${{ steps.r.outputs.light }}
+    steps:
+      - id: r
+        run: |
+          echo "heavy=${{ vars.RUNNER_HEAVY || 'ubuntu-latest' }}" >> "$GITHUB_OUTPUT"
+          echo "light=${{ vars.RUNNER_LIGHT || 'ubuntu-latest' }}" >> "$GITHUB_OUTPUT"
+
   # -------------------------------------------------------------------------
   # Setup — split newline-separated charts input into JSON matrix
   # -------------------------------------------------------------------------
   setup:
     name: Setup Matrix
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.resolve-runner.outputs.light }}
+    needs: [resolve-runner]
     permissions:
       contents: read
     outputs:
@@ -61,8 +80,8 @@ jobs:
   # -------------------------------------------------------------------------
   lint:
     name: Helm Lint (${{ matrix.chart }})
-    needs: [setup]
-    runs-on: ${{ inputs.runs-on }}
+    needs: [resolve-runner, setup]
+    runs-on: ${{ inputs.runs-on != '' && inputs.runs-on || needs.resolve-runner.outputs.heavy }}
     permissions:
       contents: read
     strategy:

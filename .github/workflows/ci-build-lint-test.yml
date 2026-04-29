@@ -54,11 +54,28 @@ on:
 
 jobs:
   # -------------------------------------------------------------------------
+  # Resolve runner — emit heavy/light labels from org/repo vars
+  # See chillwhales/.github docs/RUNNER-TIERING.md
+  # -------------------------------------------------------------------------
+  resolve-runner:
+    name: Resolve runner
+    runs-on: ${{ vars.RUNNER_RESOLVER || 'ubuntu-latest' }}
+    outputs:
+      heavy: ${{ steps.r.outputs.heavy }}
+      light: ${{ steps.r.outputs.light }}
+    steps:
+      - id: r
+        run: |
+          echo "heavy=${{ vars.RUNNER_HEAVY || 'ubuntu-latest' }}" >> "$GITHUB_OUTPUT"
+          echo "light=${{ vars.RUNNER_LIGHT || 'ubuntu-latest' }}" >> "$GITHUB_OUTPUT"
+
+  # -------------------------------------------------------------------------
   # Install — warm pnpm cache
   # -------------------------------------------------------------------------
   install:
     name: Install
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.resolve-runner.outputs.heavy }}
+    needs: [resolve-runner]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -73,8 +90,8 @@ jobs:
   # -------------------------------------------------------------------------
   format:
     name: Format
-    runs-on: ubuntu-latest
-    needs: [install]
+    runs-on: ${{ needs.resolve-runner.outputs.heavy }}
+    needs: [resolve-runner, install]
     if: inputs.format-command != ''
     steps:
       - uses: actions/checkout@v4
@@ -91,8 +108,8 @@ jobs:
   # -------------------------------------------------------------------------
   lint:
     name: Lint
-    runs-on: ubuntu-latest
-    needs: [install]
+    runs-on: ${{ needs.resolve-runner.outputs.heavy }}
+    needs: [resolve-runner, install]
     if: inputs.lint-command != ''
     steps:
       - uses: actions/checkout@v4
@@ -112,8 +129,8 @@ jobs:
   # -------------------------------------------------------------------------
   build:
     name: Build
-    runs-on: ubuntu-latest
-    needs: [install]
+    runs-on: ${{ needs.resolve-runner.outputs.heavy }}
+    needs: [resolve-runner, install]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -136,8 +153,8 @@ jobs:
   # -------------------------------------------------------------------------
   typecheck:
     name: Typecheck
-    runs-on: ubuntu-latest
-    needs: [build]
+    runs-on: ${{ needs.resolve-runner.outputs.heavy }}
+    needs: [resolve-runner, build]
     if: inputs.typecheck-command != ''
     steps:
       - uses: actions/checkout@v4
@@ -159,8 +176,8 @@ jobs:
   # -------------------------------------------------------------------------
   test:
     name: Test (Node ${{ matrix.node-version }})
-    runs-on: ubuntu-latest
-    needs: [build]
+    runs-on: ${{ needs.resolve-runner.outputs.heavy }}
+    needs: [resolve-runner, build]
     if: inputs.test-command != ''
     strategy:
       matrix:
@@ -193,8 +210,8 @@ jobs:
   # -------------------------------------------------------------------------
   coverage:
     name: Coverage Report
-    runs-on: ubuntu-latest
-    needs: [test]
+    runs-on: ${{ needs.resolve-runner.outputs.heavy }}
+    needs: [resolve-runner, test]
     if: inputs.test-command != '' && github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4

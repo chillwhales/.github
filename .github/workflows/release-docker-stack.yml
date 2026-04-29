@@ -27,9 +27,22 @@ on:
         value: ${{ jobs.release.outputs.version }}
 
 jobs:
+  resolve-runner:
+    name: Resolve runner
+    runs-on: ${{ vars.RUNNER_RESOLVER || 'ubuntu-latest' }}
+    outputs:
+      heavy: ${{ steps.r.outputs.heavy }}
+      light: ${{ steps.r.outputs.light }}
+    steps:
+      - id: r
+        run: |
+          echo "heavy=${{ vars.RUNNER_HEAVY || 'ubuntu-latest' }}" >> "$GITHUB_OUTPUT"
+          echo "light=${{ vars.RUNNER_LIGHT || 'ubuntu-latest' }}" >> "$GITHUB_OUTPUT"
+
   release:
     name: Release
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.resolve-runner.outputs.light }}
+    needs: [resolve-runner]
     permissions:
       contents: write
       pull-requests: write
