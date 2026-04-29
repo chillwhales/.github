@@ -47,16 +47,7 @@ on:
 
 jobs:
   resolve-runner:
-    name: Resolve runner
-    runs-on: ${{ vars.RUNNER_RESOLVER || 'ubuntu-latest' }}
-    outputs:
-      heavy: ${{ steps.r.outputs.heavy }}
-      light: ${{ steps.r.outputs.light }}
-    steps:
-      - id: r
-        run: |
-          echo "heavy=${{ vars.RUNNER_HEAVY || 'self-hosted' }}" >> "$GITHUB_OUTPUT"
-          echo "light=${{ vars.RUNNER_LIGHT || 'ubuntu-latest' }}" >> "$GITHUB_OUTPUT"
+    uses: ./.github/workflows/resolve-runner.yml
 
   retag:
     name: Retag ${{ inputs.image }} (${{ inputs.source-tag }})
