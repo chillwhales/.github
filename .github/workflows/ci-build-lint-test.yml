@@ -53,10 +53,6 @@ on:
         default: "coverage-reports"
 
 jobs:
-  # -------------------------------------------------------------------------
-  # Resolve runner — emit heavy/light labels from org/repo vars
-  # See chillwhales/.github docs/RUNNER-TIERING.md
-  # -------------------------------------------------------------------------
   resolve-runner:
     uses: ./.github/workflows/resolve-runner.yml
 

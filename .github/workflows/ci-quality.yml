@@ -25,9 +25,6 @@ on:
         default: main
 
 jobs:
-  # -------------------------------------------------------------------------
-  # Resolve runner — emit heavy/light labels from org/repo vars
-  # -------------------------------------------------------------------------
   resolve-runner:
     uses: ./.github/workflows/resolve-runner.yml
 
