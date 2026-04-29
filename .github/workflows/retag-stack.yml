@@ -120,7 +120,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release.outputs.retag-matrix) }}
-    uses: chillwhales/.github/.github/workflows/retag-image.yml@feat/retag-stack
+    uses: chillwhales/.github/.github/workflows/retag-image.yml@main
     with:
       image: ${{ matrix.image }}
       source-tag: sha-${{ matrix.source-sha-short }}
