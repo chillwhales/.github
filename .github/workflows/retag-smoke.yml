@@ -1,0 +1,55 @@
+name: Smoke — retag-image / retag-stack
+
+# Manual smoke test for the retag reusables. Retags an existing image+source-tag
+# (defaulting to a known-good chillpass build) to a throwaway tag derived from
+# the run id, then asserts byte-identical manifest digests via the workflow's
+# own outputs. No production tags are touched.
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: GHCR image name (under ghcr.io/chillwhales/) to exercise.
+        type: string
+        required: true
+        default: chillpass
+      source-tag:
+        description: Existing tag on that image to retag from (e.g. "latest" or "sha-abc1234").
+        type: string
+        required: true
+        default: latest
+
+permissions: {}
+
+jobs:
+  smoke-retag-image:
+    name: Smoke — retag-image
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/retag-image.yml
+    with:
+      image: ${{ inputs.image }}
+      source-tag: ${{ inputs.source-tag }}
+      dest-tags: |
+        smoke-${{ github.run_id }}
+        smoke-${{ github.run_id }}-also
+
+  assert-digests:
+    needs: [smoke-retag-image]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assert source-digest matches every dest-digest
+        env:
+          SRC: ${{ needs.smoke-retag-image.outputs.source-digest }}
+          DESTS: ${{ needs.smoke-retag-image.outputs.dest-digests }}
+        run: |
+          set -euo pipefail
+          echo "source-digest=$SRC"
+          echo "dest-digests=$DESTS"
+          mismatch=$(jq -r --arg s "$SRC" '[.[] | select(.digest != $s)] | length' <<<"$DESTS")
+          if [ "$mismatch" != "0" ]; then
+            echo "::error::Smoke retag produced rebuilt images (digest drift)" >&2
+            exit 1
+          fi
+          echo "All dest digests match source — retag is byte-identical."
