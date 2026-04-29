@@ -32,6 +32,7 @@ Two tiers only. No "medium" — see [Why not medium?](#why-not-medium).
 | --------------- | -------------------- | ----------------------------------------------------------- |
 | `RUNNER_HEAVY`  | `chillwhales-runners`| Pool for heavy jobs                                         |
 | `RUNNER_LIGHT`  | `ubuntu-latest`      | Pool for light jobs                                         |
+| `RUNNER_RESOLVER` | `ubuntu-latest`    | Pool for the resolver job itself (escape hatch for outages) |
 
 Set at the org level for global default; override at repo level for opt-out.
 
@@ -43,7 +44,7 @@ depend on:
 ```yaml
 jobs:
   resolve-runner:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNNER_RESOLVER || 'ubuntu-latest' }}
     outputs:
       heavy: ${{ steps.r.outputs.heavy }}
       light: ${{ steps.r.outputs.light }}
@@ -64,20 +65,25 @@ jobs:
     # ...
 ```
 
-The resolver itself stays on `ubuntu-latest` so it can run even when the
-self-hosted pool is down — that's the only way "set `RUNNER_HEAVY=ubuntu-latest`
-during outage" actually works.
+The resolver defaults to `ubuntu-latest` so it can run when the self-hosted
+pool is down — that's how "set `RUNNER_HEAVY=ubuntu-latest` during a self-hosted
+outage" actually works. The inverse outage matters too: if GitHub-hosted minutes
+are exhausted (paid-tier exceeded, billing block, GitHub-hosted incident), ops
+flips `RUNNER_RESOLVER=chillwhales-runners` to keep the resolver — and therefore
+every workflow — running on the self-hosted pool. Same lever, opposite
+direction.
 
 ## Operational scenarios
 
-| Goal                                  | `RUNNER_HEAVY`          | `RUNNER_LIGHT`         |
-| ------------------------------------- | ----------------------- | ---------------------- |
-| Default (heavy on self-hosted)        | unset                   | unset                  |
-| Everything on self-hosted             | unset                   | `chillwhales-runners`  |
-| Self-hosted pool is down              | `ubuntu-latest`         | unset                  |
-| Everything on GitHub-hosted           | `ubuntu-latest`         | unset                  |
-| Drain a stuck self-hosted queue       | `ubuntu-latest`         | `ubuntu-latest`        |
-| One repo opts out of self-hosted      | repo var: `ubuntu-latest`| —                      |
+| Goal                                  | `RUNNER_HEAVY`          | `RUNNER_LIGHT`         | `RUNNER_RESOLVER`      |
+| ------------------------------------- | ----------------------- | ---------------------- | ---------------------- |
+| Default (heavy on self-hosted)        | unset                   | unset                  | unset                  |
+| Everything on self-hosted             | unset                   | `chillwhales-runners`  | unset                  |
+| Self-hosted pool is down              | `ubuntu-latest`         | unset                  | unset                  |
+| Everything on GitHub-hosted           | `ubuntu-latest`         | unset                  | unset                  |
+| Drain a stuck self-hosted queue       | `ubuntu-latest`         | `ubuntu-latest`        | unset                  |
+| One repo opts out of self-hosted      | repo var: `ubuntu-latest`| —                      | —                      |
+| GitHub-hosted minutes exhausted       | unset                   | `chillwhales-runners`  | `chillwhales-runners`  |
 
 No workflow file changes for any of these.
 
@@ -130,13 +136,15 @@ generic size tier. Named tiers stay meaningful; size tiers don't.
 
 ## Tradeoffs
 
-- **+1 job per workflow.** ~3s each, runs on `ubuntu-latest` (free). Worth it
-  for the ops control.
+- **+1 job per workflow.** ~3s each, defaults to `ubuntu-latest` (free). Worth
+  it for the ops control.
 - **`needs: resolve-runner` boilerplate** on every job. Minor noise, but
   enforced by review.
-- **Resolver must run on GitHub-hosted.** If we put it on `${{ vars.RUNNER_LIGHT }}`
-  with a default, an outage of self-hosted plus a misconfigured `RUNNER_LIGHT`
-  could deadlock. Hardcoding `ubuntu-latest` removes that footgun.
+- **Resolver pool is its own var.** `RUNNER_RESOLVER` defaults to
+  `ubuntu-latest` so a self-hosted outage doesn't strand the resolver. It's
+  separate from `RUNNER_LIGHT` to avoid a deadlock from a misconfigured
+  `RUNNER_LIGHT` during an outage, and it lets ops flip the resolver to
+  self-hosted independently when GitHub-hosted minutes run out.
 - **Self-hosted prerequisites.** Buildx + DinD support and GHCR egress must
   be confirmed on the runner pool before flipping any heavy workflow over.
   Buildx cache strategy may want to switch from `type=registry` to
@@ -151,7 +159,9 @@ generic size tier. Named tiers stay meaningful; size tiers don't.
 3. Confirm buildx + GHCR work on self-hosted; tune cache strategy.
 4. Promote `RUNNER_HEAVY=chillwhales-runners` to org-level default once one
    repo has been green for a week.
-5. Document the outage playbook (set `RUNNER_HEAVY=ubuntu-latest` org-wide).
+5. Document the outage playbook: self-hosted down → set `RUNNER_HEAVY=ubuntu-latest`
+   org-wide; GitHub-hosted minutes exhausted → set `RUNNER_LIGHT=chillwhales-runners`
+   and `RUNNER_RESOLVER=chillwhales-runners` org-wide.
 
 ## Open questions
 
