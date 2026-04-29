@@ -64,9 +64,13 @@ on:
         value: ${{ jobs.build-and-push.outputs.image-ref }}
 
 jobs:
+  resolve-runner:
+    uses: ./.github/workflows/resolve-runner.yml
+
   build-and-push:
     name: Build ${{ inputs.image }}
-    runs-on: ubuntu-24.04
+    runs-on: ${{ needs.resolve-runner.outputs.heavy }}
+    needs: [resolve-runner]
     permissions:
       contents: read
       packages: write

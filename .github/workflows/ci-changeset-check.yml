@@ -15,9 +15,13 @@ on:
         default: main
 
 jobs:
+  resolve-runner:
+    uses: ./.github/workflows/resolve-runner.yml
+
   changeset-check:
     name: Changeset Check
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.resolve-runner.outputs.light }}
+    needs: [resolve-runner]
     if: github.event_name == 'pull_request'
     steps:
       - uses: chillwhales/.github/.github/actions/setup-pnpm@main

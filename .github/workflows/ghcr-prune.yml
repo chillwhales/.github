@@ -49,9 +49,13 @@ on:
         default: false
 
 jobs:
+  resolve-runner:
+    uses: ./.github/workflows/resolve-runner.yml
+
   prune:
     name: Prune stale ${{ inputs.pr-tag-pattern }} tags
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.resolve-runner.outputs.light }}
+    needs: [resolve-runner]
     permissions:
       contents: read
       packages: write

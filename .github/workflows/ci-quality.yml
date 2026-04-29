@@ -25,12 +25,16 @@ on:
         default: main
 
 jobs:
+  resolve-runner:
+    uses: ./.github/workflows/resolve-runner.yml
+
   # -------------------------------------------------------------------------
   # Package Verify (downloads build artifact from caller workflow)
   # -------------------------------------------------------------------------
   pkg-verify:
     name: Package Verify
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.resolve-runner.outputs.light }}
+    needs: [resolve-runner]
     if: inputs.verify-command != ''
     steps:
       - uses: actions/checkout@v4
@@ -52,7 +56,8 @@ jobs:
   # -------------------------------------------------------------------------
   changeset-check:
     name: Changeset Check
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.resolve-runner.outputs.light }}
+    needs: [resolve-runner]
     if: inputs.changeset-check && github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4

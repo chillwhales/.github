@@ -49,9 +49,13 @@ on:
         value: ${{ jobs.release.outputs.publishedPackages }}
 
 jobs:
+  resolve-runner:
+    uses: ./.github/workflows/resolve-runner.yml
+
   release:
     name: Release
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.resolve-runner.outputs.light }}
+    needs: [resolve-runner]
     permissions:
       contents: write
       pull-requests: write

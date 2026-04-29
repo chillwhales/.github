@@ -15,12 +15,16 @@ on:
         default: ""
 
 jobs:
+  resolve-runner:
+    uses: ./.github/workflows/resolve-runner.yml
+
   # -------------------------------------------------------------------------
   # Preview Release (PRs only, runs pkg-pr-new)
   # -------------------------------------------------------------------------
   preview:
     name: Preview Release
-    runs-on: ubuntu-latest
+    runs-on: ${{ needs.resolve-runner.outputs.heavy }}
+    needs: [resolve-runner]
     if: inputs.preview-packages != '' && github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
