@@ -20,7 +20,7 @@ on:
       runs-on:
         description: |
           Runner label for the lint matrix jobs. When empty, falls back to the
-          tiered resolver (`vars.RUNNER_HEAVY` → default `ubuntu-latest`). Pass
+          tiered resolver (`vars.RUNNER_HEAVY` → default `self-hosted`). Pass
           a value to force a specific runner.
         type: string
         required: false
@@ -39,7 +39,7 @@ jobs:
     steps:
       - id: r
         run: |
-          echo "heavy=${{ vars.RUNNER_HEAVY || 'ubuntu-latest' }}" >> "$GITHUB_OUTPUT"
+          echo "heavy=${{ vars.RUNNER_HEAVY || 'self-hosted' }}" >> "$GITHUB_OUTPUT"
           echo "light=${{ vars.RUNNER_LIGHT || 'ubuntu-latest' }}" >> "$GITHUB_OUTPUT"
 
   # -------------------------------------------------------------------------

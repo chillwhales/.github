@@ -30,7 +30,7 @@ Two tiers only. No "medium" — see [Why not medium?](#why-not-medium).
 
 | Var             | Default (when unset) | Meaning                                                     |
 | --------------- | -------------------- | ----------------------------------------------------------- |
-| `RUNNER_HEAVY`  | `chillwhales-runners`| Pool for heavy jobs                                         |
+| `RUNNER_HEAVY`  | `self-hosted`        | Pool for heavy jobs                                         |
 | `RUNNER_LIGHT`  | `ubuntu-latest`      | Pool for light jobs                                         |
 | `RUNNER_RESOLVER` | `ubuntu-latest`    | Pool for the resolver job itself (escape hatch for outages) |
 
@@ -51,7 +51,7 @@ jobs:
     steps:
       - id: r
         run: |
-          echo "heavy=${{ vars.RUNNER_HEAVY || 'chillwhales-runners' }}" >> "$GITHUB_OUTPUT"
+          echo "heavy=${{ vars.RUNNER_HEAVY || 'self-hosted' }}" >> "$GITHUB_OUTPUT"
           echo "light=${{ vars.RUNNER_LIGHT || 'ubuntu-latest' }}"      >> "$GITHUB_OUTPUT"
 
   build:
