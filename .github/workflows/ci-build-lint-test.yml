@@ -51,26 +51,25 @@ on:
         type: string
         required: false
         default: "coverage-reports"
+      build-cache-paths:
+        description: |
+          Newline-separated paths to cache across builds (e.g., .next/cache).
+          Cache is keyed on the lockfile + source file hashes so incremental
+          builds reuse prior compilation output. Leave empty to disable.
+        type: string
+        required: false
+        default: ""
+      build-cache-key-files:
+        description: |
+          Glob(s) for source files whose hash invalidates the build cache.
+          Defaults to common JS/TS source patterns.
+        type: string
+        required: false
+        default: "**/*.[jt]s\n**/*.[jt]sx"
 
 jobs:
   resolve-runner:
     uses: ./.github/workflows/resolve-runner.yml
-
-  # -------------------------------------------------------------------------
-  # Install — warm pnpm cache
-  # -------------------------------------------------------------------------
-  install:
-    name: Install
-    runs-on: ${{ needs.resolve-runner.outputs.heavy }}
-    needs: [resolve-runner]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
 
   # -------------------------------------------------------------------------
   # Format check (parallel with lint + build)
@@ -78,7 +77,7 @@ jobs:
   format:
     name: Format
     runs-on: ${{ needs.resolve-runner.outputs.heavy }}
-    needs: [resolve-runner, install]
+    needs: [resolve-runner]
     if: inputs.format-command != ''
     steps:
       - uses: actions/checkout@v4
@@ -96,7 +95,7 @@ jobs:
   lint:
     name: Lint
     runs-on: ${{ needs.resolve-runner.outputs.heavy }}
-    needs: [resolve-runner, install]
+    needs: [resolve-runner]
     if: inputs.lint-command != ''
     steps:
       - uses: actions/checkout@v4
@@ -117,7 +116,7 @@ jobs:
   build:
     name: Build
     runs-on: ${{ needs.resolve-runner.outputs.heavy }}
-    needs: [resolve-runner, install]
+    needs: [resolve-runner]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -126,6 +125,15 @@ jobs:
           node-version: ${{ inputs.node-version }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Restore build cache
+        if: inputs.build-cache-paths != ''
+        uses: actions/cache@v4
+        with:
+          path: ${{ inputs.build-cache-paths }}
+          key: ${{ runner.os }}-build-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles(inputs.build-cache-key-files) }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ hashFiles('**/pnpm-lock.yaml') }}-
+            ${{ runner.os }}-build-
       - run: ${{ inputs.build-command }}
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
