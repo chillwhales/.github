@@ -1,18 +1,28 @@
 # Build and publish the cross-org GitHub Actions runner image.
 #
 # Image: ghcr.io/chillwhales/actions-runner
-# Tags published per build:
-#   - node22-<short-sha>   (immutable, used for Helm pins)
-#   - node22               (rolling)
-#   - latest               (rolling)
+#
+# Tags:
+#   On push to main (or weekly/manual):
+#     - node22-<short-sha>   (immutable, used for Helm pins)
+#     - node22               (rolling)
+#     - latest               (rolling)
+#   On pull_request touching runner/**:
+#     - pr-<number>-<short-sha>   (immutable, scoped to PR for runner smoke-testing)
+#     - pr-<number>               (rolling within the PR)
 #
 # Triggers:
-#   - push to main touching runner/**     (intentional content change)
-#   - weekly cron                          (pick up base image security patches)
-#   - workflow_dispatch                    (manual rebuild, e.g. pnpm bump)
+#   - pull_request (same paths)            validate the build + pre-publish PR tag
+#   - push to main touching runner/**      promote to canonical tags
+#   - weekly cron                          pick up base image security patches
+#   - workflow_dispatch                    manual rebuild
 name: Runner image
 
 on:
+  pull_request:
+    paths:
+      - 'runner/**'
+      - '.github/workflows/runner-image.yml'
   push:
     branches: [main]
     paths:
@@ -24,8 +34,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: runner-image
-  cancel-in-progress: false
+  group: runner-image-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   resolve-runner:
@@ -46,12 +56,20 @@ jobs:
         run: |
           short_sha="${GITHUB_SHA::7}"
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/actions-runner"
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
           {
-            echo "image=${image}"
             echo "tags<<EOF"
-            echo "${image}:node22-${short_sha}"
-            echo "${image}:node22"
-            echo "${image}:latest"
+            if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+              pr="${{ github.event.pull_request.number }}"
+              echo "${image}:pr-${pr}-${short_sha}"
+              echo "${image}:pr-${pr}"
+              echo "pin_tag=pr-${pr}-${short_sha}" >> "$GITHUB_OUTPUT"
+            else
+              echo "${image}:node22-${short_sha}"
+              echo "${image}:node22"
+              echo "${image}:latest"
+              echo "pin_tag=node22-${short_sha}" >> "$GITHUB_OUTPUT"
+            fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
@@ -73,22 +91,38 @@ jobs:
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=registry,ref=${{ steps.tags.outputs.image }}:buildcache
-          cache-to: type=registry,ref=${{ steps.tags.outputs.image }}:buildcache,mode=max
+          cache-to: ${{ github.event_name == 'pull_request' && '' || format('type=registry,ref={0}:buildcache,mode=max', steps.tags.outputs.image) }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.description=GitHub Actions runner with Node 22 + pnpm baked in
+
+      - name: Smoke test image
+        run: |
+          docker run --rm --entrypoint bash "${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.pin_tag }}" -lc '
+            set -euo pipefail
+            node --version
+            corepack --version
+            pnpm --version
+            git --version
+          '
 
       - name: Summary
         run: |
           {
             echo "## Runner image published"
             echo ""
-            echo "Pin Helm values to the immutable tag:"
+            echo "Image: \`${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.pin_tag }}\`"
+            echo ""
+            if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+              echo "PR-scoped image — pin a runner to this tag to smoke-test before merge:"
+            else
+              echo "Pin Helm values to the immutable tag:"
+            fi
             echo ""
             echo '```yaml'
             echo "image:"
             echo "  repository: ${{ steps.tags.outputs.image }}"
-            echo "  tag: node22-${GITHUB_SHA::7}"
+            echo "  tag: ${{ steps.tags.outputs.pin_tag }}"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
