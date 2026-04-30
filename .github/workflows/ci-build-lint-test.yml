@@ -200,6 +200,9 @@ jobs:
     runs-on: ${{ needs.resolve-runner.outputs.heavy }}
     needs: [resolve-runner, test]
     if: inputs.test-command != '' && github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - name: Download coverage reports
