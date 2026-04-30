@@ -23,6 +23,16 @@ on:
         type: string
         required: false
         default: main
+      audit:
+        description: Whether to run pnpm audit
+        type: boolean
+        required: false
+        default: true
+      audit-level:
+        description: pnpm audit severity threshold (low/moderate/high/critical)
+        type: string
+        required: false
+        default: critical
 
 jobs:
   resolve-runner:
@@ -70,3 +80,17 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm changeset status --since=origin/${{ inputs.base-branch }}
+
+  # -------------------------------------------------------------------------
+  # Audit (pnpm audit against severity threshold)
+  # -------------------------------------------------------------------------
+  audit:
+    name: Audit
+    runs-on: ${{ needs.resolve-runner.outputs.light }}
+    needs: [resolve-runner]
+    if: inputs.audit
+    steps:
+      - uses: chillwhales/.github/.github/actions/setup-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+      - run: pnpm audit --audit-level=${{ inputs.audit-level }}
