@@ -69,7 +69,11 @@ jobs:
           REST="${VERSION#*.}"
           MINOR="${MAJOR}.${REST%%.*}"
           echo "Tagging $MAJOR and $MINOR at $SHA"
+          # Capture the current remote tag SHAs (empty if the tag does not yet exist)
+          # so --force-with-lease only overwrites what we expect.
+          MAJOR_OLD="$(git ls-remote --tags origin "refs/tags/$MAJOR" | awk '{print $1}')"
+          MINOR_OLD="$(git ls-remote --tags origin "refs/tags/$MINOR" | awk '{print $1}')"
           git tag -f "$MAJOR" "$SHA"
           git tag -f "$MINOR" "$SHA"
-          git push -f origin "$MAJOR"
-          git push -f origin "$MINOR"
+          git push --force-with-lease="refs/tags/$MAJOR:$MAJOR_OLD" origin "refs/tags/$MAJOR"
+          git push --force-with-lease="refs/tags/$MINOR:$MINOR_OLD" origin "refs/tags/$MINOR"

@@ -219,7 +219,7 @@ Two ways consumer repos pick up these workflows:
 
 ### Conventions
 
-- Always pin to `@main` for now; switch to `@v1` once tags exist.
+- Pin to a specific released version (e.g. `@v1.0.0`) for reproducible builds. Use `@v1` (floating major) only when you want automatic non-breaking updates and trust the release process. Avoid `@main` outside of testing — it can break consumers without warning.
 - Always set `concurrency` on caller workflows to prevent overlapping runs on the same ref.
 - Set `permissions: { contents: read, packages: write }` on any job that calls `publish-docker-ghcr`.
 - Pass `NPM_TOKEN` only to `release-changesets`; never expose it to Docker jobs.
@@ -351,4 +351,13 @@ jobs:
 
 ## Versioning
 
-All workflows are consumed via `@main`. For stability, consider tagging releases (e.g., `@v1`) once workflows stabilize. Breaking changes should be communicated across consumer repos before merging.
+Releases are cut by [Changesets](https://github.com/changesets/changesets). Each release publishes an immutable tag (`vX.Y.Z`) and moves two floating tags (`vX` and `vX.Y`) to the same commit.
+
+**Pinning recommendations for consumers:**
+
+- **`@vX.Y.Z`** (e.g. `@v1.0.0`) — fully reproducible. Recommended for production callers and any repo that needs deterministic CI behavior.
+- **`@vX.Y`** (e.g. `@v1.0`) — receives patch fixes automatically; no minor or major drift.
+- **`@vX`** (e.g. `@v1`) — receives all non-breaking changes. Acceptable when you want automatic non-breaking updates.
+- **`@main`** — unstable; only use for testing changes to this repo before they're released.
+
+Breaking changes ship as a new major (`v2`, `v3`, ...) and are announced via the Changesets release notes before merging.
