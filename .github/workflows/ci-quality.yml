@@ -33,6 +33,21 @@ on:
         type: string
         required: false
         default: critical
+      sherif-command:
+        description: Sherif monorepo consistency check command (e.g., "pnpm sherif"). Empty = skip.
+        type: string
+        required: false
+        default: ""
+      knip-command:
+        description: Knip unused-code check command (e.g., "pnpm knip"). Empty = skip.
+        type: string
+        required: false
+        default: ""
+      madge-command:
+        description: Madge circular-dependency check command (e.g., "pnpm madge --circular ."). Empty = skip.
+        type: string
+        required: false
+        default: ""
 
 jobs:
   resolve-runner:
@@ -94,3 +109,45 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
       - run: pnpm audit --audit-level=${{ inputs.audit-level }}
+
+  # -------------------------------------------------------------------------
+  # Sherif (monorepo dependency consistency)
+  # -------------------------------------------------------------------------
+  sherif:
+    name: Sherif
+    runs-on: ${{ needs.resolve-runner.outputs.light }}
+    needs: [resolve-runner]
+    if: inputs.sherif-command != ''
+    steps:
+      - uses: chillwhales/.github/.github/actions/setup-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+      - run: ${{ inputs.sherif-command }}
+
+  # -------------------------------------------------------------------------
+  # Knip (unused exports/files/dependencies)
+  # -------------------------------------------------------------------------
+  knip:
+    name: Knip
+    runs-on: ${{ needs.resolve-runner.outputs.light }}
+    needs: [resolve-runner]
+    if: inputs.knip-command != ''
+    steps:
+      - uses: chillwhales/.github/.github/actions/setup-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+      - run: ${{ inputs.knip-command }}
+
+  # -------------------------------------------------------------------------
+  # Madge (circular dependency detection)
+  # -------------------------------------------------------------------------
+  madge:
+    name: Madge
+    runs-on: ${{ needs.resolve-runner.outputs.light }}
+    needs: [resolve-runner]
+    if: inputs.madge-command != ''
+    steps:
+      - uses: chillwhales/.github/.github/actions/setup-pnpm@main
+        with:
+          node-version: ${{ inputs.node-version }}
+      - run: ${{ inputs.madge-command }}
