@@ -1,10 +1,16 @@
-# chillwhales
+# Chillwhales
 
-Building open-source tooling for the [LUKSO](https://lukso.network/) blockchain ecosystem.
+LUKSO applications, standards tooling and the Realm of Chill creative universe.
 
-## Public Repositories
+## Public developer tools
 
-| Repository                                                | Description                                                                                                                   |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| [LSPs](https://github.com/chillwhales/LSPs)               | LUKSO Standards Proposals — TypeScript utilities and contracts for LSP standards                                              |
-| [lsp-indexer](https://github.com/chillwhales/lsp-indexer) | LUKSO blockchain indexer with type-safe npm packages (`@lsp-indexer/*`) for querying profiles, digital assets, NFTs, and more |
+- [LSPs](https://github.com/chillwhales/LSPs) — TypeScript schemas, encoders and utilities for LUKSO Standard Proposals, published as `@chillwhales` packages.
+- [LSP Indexer](https://github.com/chillwhales/lsp-indexer) — LUKSO event indexing and typed GraphQL access. A multi-chain SQD Pipes v3 rewrite is in development on its integration branch.
+
+## Creative universe
+
+Realm of Chill brings together stories, characters, places and visual world-building. Its source material is maintained separately from application tooling.
+
+## Related organizations
+
+[Kethalia](https://github.com/kethalia)
